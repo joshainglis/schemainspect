@@ -30,11 +30,12 @@ def do_deps(db_url):
         deps = i.deps
 
     def process_row(dep):
-        depends_on = quoted_identifier(dep.name, dep.schema, dep.identity_arguments)
+        depends_on = quoted_identifier(dep.name, dep.schema, dep.identity_arguments, dep.result)
         thing = quoted_identifier(
             dep.name_dependent_on,
             dep.schema_dependent_on,
             dep.identity_arguments_dependent_on,
+            dep.result_dependent_on,
         )
 
         return dict(
