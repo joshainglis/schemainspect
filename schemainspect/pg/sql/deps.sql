@@ -4,6 +4,7 @@ with things1 as (
     pronamespace as namespace,
     proname as name,
     pg_get_function_identity_arguments(oid) as identity_arguments,
+    pg_get_function_result(oid) as result,
     'f' as kind,
     null::oid as composite_type_oid
   from pg_proc
@@ -15,6 +16,7 @@ with things1 as (
     relnamespace as namespace,
     relname as name,
     null as identity_arguments,
+    null as result,
     relkind as kind,
     null::oid as composite_type_oid
   from pg_class
@@ -27,6 +29,7 @@ with things1 as (
         typnamespace as namespace,
         typname as name,
         null as identity_arguments,
+        null as result,
         'c' as kind,
         typrelid::oid as composite_type_oid
     from pg_type
@@ -55,6 +58,7 @@ things as (
       n.nspname as schema,
       name,
       identity_arguments,
+      result,
       t.composite_type_oid
     from things1 t
     inner join pg_namespace n
@@ -84,11 +88,13 @@ combined as (
     t.schema,
     t.name,
     t.identity_arguments,
+    t.result,
     case when t.composite_type_oid is not null then 'r' ELSE t.kind end,
     things_dependent_on.objid as objid_dependent_on,
     things_dependent_on.schema as schema_dependent_on,
     things_dependent_on.name as name_dependent_on,
     things_dependent_on.identity_arguments as identity_arguments_dependent_on,
+    things_dependent_on.result as result_dependent_on,
     things_dependent_on.kind as kind_dependent_on
   FROM
       pg_depend d
@@ -109,11 +115,13 @@ combined as (
     t.schema,
     t.name,
     t.identity_arguments,
+    t.result,
     case when t.composite_type_oid is not null then 'r' ELSE t.kind end,
     things_dependent_on.objid as objid_dependent_on,
     things_dependent_on.schema as schema_dependent_on,
     things_dependent_on.name as name_dependent_on,
     things_dependent_on.identity_arguments as identity_arguments_dependent_on,
+    things_dependent_on.result as result_dependent_on,
     things_dependent_on.kind as kind_dependent_on
   FROM
       pg_depend d
@@ -129,11 +137,13 @@ combined as (
     t.schema,
     t.name,
     t.identity_arguments,
+    t.result,
     case when t.composite_type_oid is not null then 'r' ELSE t.kind end,
     things_dependent_on.objid as objid_dependent_on,
     things_dependent_on.schema as schema_dependent_on,
     things_dependent_on.name as name_dependent_on,
     things_dependent_on.identity_arguments as identity_arguments_dependent_on,
+    things_dependent_on.result as result_dependent_on,
     things_dependent_on.kind as kind_dependent_on
   FROM
     array_dependencies ad
@@ -144,5 +154,5 @@ combined as (
 )
 select * from combined
 order by
-schema, name, identity_arguments, kind_dependent_on,
-schema_dependent_on, name_dependent_on, identity_arguments_dependent_on
+schema, name, identity_arguments, result, kind_dependent_on,
+schema_dependent_on, name_dependent_on, identity_arguments_dependent_on, result_dependent_on

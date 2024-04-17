@@ -1407,11 +1407,12 @@ class PostgreSQL(DBInspector):
         self.deps = list(q)
 
         for dep in self.deps:
-            x = quoted_identifier(dep.name, dep.schema, dep.identity_arguments)
+            x = quoted_identifier(dep.name, dep.schema, dep.identity_arguments, dep.result)
             x_dependent_on = quoted_identifier(
                 dep.name_dependent_on,
                 dep.schema_dependent_on,
                 dep.identity_arguments_dependent_on,
+                dep.result_dependent_on,
             )
             self.selectables[x].dependent_on.append(x_dependent_on)
             self.selectables[x].dependent_on.sort()
@@ -1792,8 +1793,8 @@ class PostgreSQL(DBInspector):
                 kind=f.kind,
             )
 
-            identity_arguments = "({})".format(s.identity_arguments)
-            self.functions[s.quoted_full_name + identity_arguments + str(s.returntype)] = s
+            identity_arguments = "({}) RETURNS {}".format(s.identity_arguments, s.result_string)
+            self.functions[s.quoted_full_name + identity_arguments] = s
 
     def load_aggregate_functions(self):
         q = self.execute(self.AGG_FUNCTIONS_QUERY)

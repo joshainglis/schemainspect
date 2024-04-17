@@ -42,25 +42,25 @@ class AutoRepr:  # pragma: no cover
         return not self == other
 
 
-def unquoted_identifier(identifier, *, schema=None, identity_arguments=None):
+def unquoted_identifier(identifier, *, schema=None, identity_arguments=None, return_type=None):
     if identifier is None and schema is not None:
         return schema
     s = "{}".format(identifier)
     if schema:
         s = "{}.{}".format(schema, s)
     if identity_arguments is not None:
-        s = "{}({})".format(s, identity_arguments)
+        s = "{}({}) RETURNS {}".format(s, identity_arguments, return_type)
     return s
 
 
-def quoted_identifier(identifier, schema=None, identity_arguments=None):
+def quoted_identifier(identifier, schema=None, identity_arguments=None, return_type=None):
     if identifier is None and schema is not None:
         return '"{}"'.format(schema.replace('"', '""'))
     s = '"{}"'.format(identifier.replace('"', '""'))
     if schema:
         s = '"{}".{}'.format(schema.replace('"', '""'), s)
     if identity_arguments is not None:
-        s = "{}({})".format(s, identity_arguments)
+        s = "{}({}) RETURNS {}".format(s, identity_arguments, return_type)
     return s
 
 
