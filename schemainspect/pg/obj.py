@@ -1779,7 +1779,7 @@ class PostgreSQL(DBInspector):
             )
 
             identity_arguments = "({})".format(s.identity_arguments)
-            self.functions[s.quoted_full_name + identity_arguments + s.returntype] = s
+            self.functions[s.quoted_full_name + identity_arguments + str(s.returntype)] = s
 
     def load_aggregate_functions(self):
         q = self.execute(self.AGG_FUNCTIONS_QUERY)
