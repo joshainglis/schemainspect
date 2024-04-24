@@ -97,12 +97,12 @@ FROM
     r
     left join pg_catalog.pg_attribute a
         on r.oid = a.attrelid and a.attnum > 0
+        and not a.attisdropped
     left join pg_catalog.pg_attrdef ad
         on a.attrelid = ad.adrelid
         and a.attnum = ad.adnum
     left join enums e
       on a.atttypid = e.enum_oid
-where a.attisdropped is not true
--- SKIP_INTERNAL and r.schema not in ('pg_catalog', 'information_schema', 'pg_toast')
+-- SKIP_INTERNAL WHERE r.schema not in ('pg_catalog', 'information_schema', 'pg_toast')
 -- SKIP_INTERNAL and r.schema not like 'pg_temp_%' and r.schema not like 'pg_toast_temp_%'
 order by relationtype, r.schema, r.name, position_number;
