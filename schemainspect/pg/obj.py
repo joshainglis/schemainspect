@@ -1226,7 +1226,7 @@ class InspectedRowPolicy(Inspected, TableRelated):
         return all(equalities)
 
 
-PROPS = "schemas relations tables views functions aggregate_functions selectables sequences constraints indexes enums extensions privileges collations triggers rlspolicies"
+PROPS = "schemas relations tables views functions aggregate_functions selectables sequences comments constraints indexes enums extensions privileges collations triggers rlspolicies"
 
 
 class PostgreSQL(DBInspector):
@@ -1860,14 +1860,19 @@ class PostgreSQL(DBInspector):
         self.domains = od((t.signature, t) for t in domains)
 
     def filter_schema(self, schema=None, exclude_schema=None):
+        if isinstance(schema, str):
+            schema = {schema}
+        if isinstance(exclude_schema, str):
+            exclude_schema = {exclude_schema}
+
         if schema and exclude_schema:
             raise ValueError("Can only have schema or exclude schema, not both")
 
         def equal_to_schema(x):
-            return x.schema == schema
+            return x.schema in schema
 
         def not_equal_to_exclude_schema(x):
-            return x.schema != exclude_schema
+            return x.schema not in exclude_schema
 
         if schema:
             comparator = equal_to_schema
