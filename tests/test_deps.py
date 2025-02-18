@@ -1,6 +1,7 @@
 from sqlbag import S
 
 from schemainspect import get_inspector
+from sqlalchemy import text
 
 CREATES = """
     create extension pg_trgm;
@@ -28,15 +29,15 @@ CREATES = """
 
 def test_can_replace(db):
     with S(db) as s:
-        s.execute(CREATES)
+        s.execute(text(CREATES))
 
     with S(db) as s:
-        s.execute("""create table t(a int, b varchar);""")
+        s.execute(text("""create table t(a int, b varchar);"""))
         i = get_inspector(s)
         s.execute(
-            """
+            text("""
 create or replace view vvv as select similarity('aaa', 'aaabc')::decimal as x, 1 as y;
-        """
+        """)
         )
         i2 = get_inspector(s)
         v1 = i.views['"public"."vvv"']
@@ -45,23 +46,27 @@ create or replace view vvv as select similarity('aaa', 'aaabc')::decimal as x, 1
         assert v2.can_replace(v1)
 
         s.execute(
-            """
+            text("""
             drop function "public"."fff"(t text) cascade;
-        """
+        """)
         )
         s.execute(
-            """
+            text("""
             create or replace function "public"."fff"(t text)
     returns TABLE(score decimal, x integer) as
     $$ select similarity('aaa', 'aaabc')::decimal, 1 as x $$
     language SQL VOLATILE CALLED ON NULL INPUT SECURITY INVOKER;
             drop table t;
             create table t(a int, b varchar primary key not null, c int);
-        """
+        """)
         )
         i2 = get_inspector(s)
-        f1 = i.selectables['"public"."fff"(t text)']
-        f2 = i2.selectables['"public"."fff"(t text)']
+        print(i.selectables.keys())
+        print(i2.selectables.keys())
+        f1 = i.selectables['"public"."fff"(t text) RETURNS TABLE(score numeric)']
+        f2 = i2.selectables[
+            '"public"."fff"(t text) RETURNS TABLE(score numeric, x integer)'
+        ]
         assert f1 != f2
         assert f2.can_replace(f1) is False
 
@@ -82,7 +87,7 @@ create view v as select * from t;
 
 """
     with S(db) as s:
-        s.execute(ENUM_DEP_SAMPLE)
+        s.execute(text(ENUM_DEP_SAMPLE))
 
         i = get_inspector(s)
 
@@ -92,7 +97,7 @@ create view v as select * from t;
 
         assert e in i.enums
 
-        assert i.enums[e].dependents == [t, v]
+        assert i.enums[e].dependents == {t, v}
         assert e in i.selectables[t].dependent_on
         assert e in i.selectables[v].dependent_on
 
@@ -100,7 +105,7 @@ create view v as select * from t;
 def test_relationships(db):
     # commented-out dependencies are the dependencies that aren't tracked directly by postgres
     with S(db) as s:
-        s.execute(CREATES)
+        s.execute(text(CREATES))
     with S(db) as s:
         i = get_inspector(s)
         dependencies_by_name = {
@@ -110,20 +115,26 @@ def test_relationships(db):
             # '"public"."depends_on_vvv"(t text)': [
             #     '"public"."vvv"'
             # ],
-            '"public"."depends_on_fff"': ['"public"."fff"(t text)'],
-            '"public"."doubledep"': [
+            '"public"."depends_on_fff"': {
+                '"public"."fff"(t text) RETURNS TABLE(score numeric)'
+            },
+            '"public"."doubledep"': {
                 '"public"."depends_on_fff"',
-                '"public"."depends_on_vvv"(t text)',
-            ],
+                '"public"."depends_on_vvv"(t text) RETURNS TABLE(score numeric)',
+            },
         }
         dependents_by_name = {
             k: v.dependents for k, v in i.selectables.items() if v.dependents
         }
         assert dependents_by_name == {
             # '"public"."vvv"': ['"public"."depends_on_vvv"(t text)'],
-            '"public"."fff"(t text)': ['"public"."depends_on_fff"'],
-            '"public"."depends_on_fff"': ['"public"."doubledep"'],
-            '"public"."depends_on_vvv"(t text)': ['"public"."doubledep"'],
+            '"public"."fff"(t text) RETURNS TABLE(score numeric)': {
+                '"public"."depends_on_fff"'
+            },
+            '"public"."depends_on_fff"': {'"public"."doubledep"'},
+            '"public"."depends_on_vvv"(t text) RETURNS TABLE(score numeric)': {
+                '"public"."doubledep"'
+            },
         }
         # testing recursive deps
         dependencies_by_name = {
@@ -135,12 +146,12 @@ def test_relationships(db):
             # '"public"."depends_on_vvv"(t text)': [
             #     '"public"."vvv"'
             # ],
-            '"public"."depends_on_fff"': ['"public"."fff"(t text)'],
-            '"public"."doubledep"': [
+            '"public"."depends_on_fff"': {'"public"."fff"(t text)'},
+            '"public"."doubledep"': {
                 '"public"."depends_on_fff"',
                 '"public"."depends_on_vvv"(t text)',
                 '"public"."fff"(t text)',
-            ],
+            },
             # '"public"."vvv"'
         }
         dependents_by_name = {
@@ -148,10 +159,12 @@ def test_relationships(db):
         }
         assert dependents_by_name == {
             # '"public"."vvv"': ['"public"."depends_on_vvv"(t text)', '"public"."doubledep"'],
-            '"public"."fff"(t text)': [
+            '"public"."fff"(t text) RETURNS TABLE(score numeric)': {
                 '"public"."depends_on_fff"',
                 '"public"."doubledep"',
-            ],
-            '"public"."depends_on_fff"': ['"public"."doubledep"'],
-            '"public"."depends_on_vvv"(t text)': ['"public"."doubledep"'],
+            },
+            '"public"."depends_on_fff"': {'"public"."doubledep"'},
+            '"public"."depends_on_vvv"(t text) RETURNS TABLE(score numeric)': {
+                '"public"."doubledep"'
+            },
         }

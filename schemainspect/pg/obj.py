@@ -1,6 +1,7 @@
 import textwrap
 from collections import OrderedDict as od
 from itertools import groupby
+from sqlalchemy import Executable
 
 from ..inspected import ColumnInfo, Inspected
 from ..inspected import InspectedSelectable as BaseInspectedSelectable
@@ -80,7 +81,6 @@ class InspectedSelectable(BaseInspectedSelectable):
     def create_statement(self):
         n = self.quoted_full_name
         if self.relationtype in ("r", "p"):
-
             if not self.is_partitioning_child_table:
                 colspec = ",\n".join(
                     "    " + c.creation_clause for c in self.columns.values()
@@ -136,17 +136,14 @@ class InspectedSelectable(BaseInspectedSelectable):
         elif self.relationtype == "c":
             drop_statement = "drop type {};".format(n)
         else:
-            raise NotImplementedError  # pragma: no cover
+            drop_statement = ""
 
         return drop_statement
 
     def alter_table_statement(self, clause):
         if self.is_alterable:
-            alter = "alter table {} {};".format(self.quoted_full_name, clause)
-        else:
-            raise NotImplementedError  # pragma: no cover
-
-        return alter
+            return "alter table {} {};".format(self.quoted_full_name, clause)
+        return ""
 
     @property
     def is_partitioned(self):
@@ -266,7 +263,7 @@ class InspectedFunction(InspectedSelectable):
         self.returntype = returntype
         self.kind = kind
 
-        super(InspectedFunction, self).__init__(
+        super().__init__(
             name=name,
             schema=schema,
             columns=columns,
@@ -327,11 +324,26 @@ class InspectedFunction(InspectedSelectable):
             and self.kind == other.kind
         )
 
-class InspectedAggFunction(InspectedSelectable):
-    def __init__(self, object_type, object_addr, object_args, schema, name, function_arguments,
-                 function_identity_arguments, aggtransfn, aggfinalfn, aggmtransfn, aggmfinalfn, aggtransspace,
-                 agginitval, aggminitval, state_type):
 
+class InspectedAggFunction(InspectedSelectable):
+    def __init__(
+        self,
+        object_type,
+        object_addr,
+        object_args,
+        schema,
+        name,
+        function_arguments,
+        function_identity_arguments,
+        aggtransfn,
+        aggfinalfn,
+        aggmtransfn,
+        aggmfinalfn,
+        aggtransspace,
+        agginitval,
+        aggminitval,
+        state_type,
+    ):
         self.object_type = object_type
         self.object_addr = tuple(object_addr)
         self.object_args = tuple(object_args)
@@ -349,7 +361,7 @@ class InspectedAggFunction(InspectedSelectable):
         self.aggminitval = aggminitval
         self.state_type = state_type
 
-        super(InspectedAggFunction, self).__init__(
+        super().__init__(
             name=name,
             schema=schema,
             columns=None,
@@ -396,7 +408,6 @@ class InspectedAggFunction(InspectedSelectable):
 
         return ddl
 
-
     @property
     def drop_statement(self):
         return "drop aggregate if exists {};".format(self.identity_signature)
@@ -407,7 +418,6 @@ class InspectedAggFunction(InspectedSelectable):
             and self.object_addr == other.object_addr
             and self.object_args == other.object_args
         )
-
 
 
 class InspectedTrigger(Inspected):
@@ -424,8 +434,8 @@ class InspectedTrigger(Inspected):
             self.full_definition,
         ) = (name, schema, table_name, proc_schema, proc_name, enabled, full_definition)
 
-        self.dependent_on = [self.quoted_full_selectable_name]
-        self.dependents = []
+        self.dependent_on = {self.quoted_full_selectable_name}
+        self.dependents = set()
 
     @property
     def signature(self):
@@ -654,7 +664,6 @@ class InspectedCollation(Inspected):
         )
 
     def __eq__(self, other):
-
         equalities = (
             self.name == other.name,
             self.schema == other.schema,
@@ -670,8 +679,8 @@ class InspectedEnum(Inspected):
         self.schema = schema
         self.elements = elements
         self.pg_version = pg_version
-        self.dependents = []
-        self.dependent_on = []
+        self.dependents = set()
+        self.dependent_on = set()
 
     @property
     def drop_statement(self):
@@ -1244,6 +1253,12 @@ class PostgreSQL(DBInspector):
         def processed(q):
             if not include_internal:
                 q = q.replace("-- SKIP_INTERNAL", "")
+            if self.pg_version >= 17:
+                q = q.replace("-- 17_AND_LATER", "")
+            if self.pg_version in (15, 16):
+                q = q.replace("-- 15_OR_16", "")
+            if 14 >= self.pg_version >= 9:
+                q = q.replace("-- 14_OR_BELOW", "")
             if self.pg_version >= 11:
                 q = q.replace("-- 11_AND_LATER", "")
             else:
@@ -1290,10 +1305,15 @@ class PostgreSQL(DBInspector):
         self.TRIGGERS_QUERY = processed(TRIGGERS_QUERY)
         self.COMMENTS_QUERY = processed(COMMENTS_QUERY)
 
-        super(PostgreSQL, self).__init__(c, include_internal)
+        super().__init__(c, include_internal)
 
     def execute(self, *args, **kwargs):
-        result = self.c.execute(*args, **kwargs)
+        qry = args[0]
+        if not self.is_raw_psyco_connection and not isinstance(qry, Executable):
+            from sqlalchemy import text
+
+            qry = text(qry)
+        result = self.c.execute(qry, *args[1:], **kwargs)
 
         if result is None:
             return self.c.fetchall()
@@ -1393,19 +1413,19 @@ class PostgreSQL(DBInspector):
         self.deps = list(q)
 
         for dep in self.deps:
-            x = quoted_identifier(dep.name, dep.schema, dep.identity_arguments, dep.result)
+            x = quoted_identifier(
+                dep.name, dep.schema, dep.identity_arguments, dep.result
+            )
             x_dependent_on = quoted_identifier(
                 dep.name_dependent_on,
                 dep.schema_dependent_on,
                 dep.identity_arguments_dependent_on,
                 dep.result_dependent_on,
             )
-            self.selectables[x].dependent_on.append(x_dependent_on)
-            self.selectables[x].dependent_on.sort()
+            self.selectables[x].dependent_on.add(x_dependent_on)
 
             try:
-                self.selectables[x_dependent_on].dependents.append(x)
-                self.selectables[x_dependent_on].dependents.sort()
+                self.selectables[x_dependent_on].dependents.add(x)
             except LookupError:
                 pass
 
@@ -1415,7 +1435,7 @@ class PostgreSQL(DBInspector):
                     dependency = self.selectables[dep_name]
                 except KeyError:
                     continue
-                dependency.dependents.append(k)
+                dependency.dependents.add(k)
 
         for k, r in self.relations.items():
             for kc, c in r.columns.items():
@@ -1423,13 +1443,13 @@ class PostgreSQL(DBInspector):
                     e_sig = c.enum.signature
 
                     if e_sig in self.enums:
-                        r.dependent_on.append(e_sig)
-                        c.enum.dependents.append(k)
+                        r.dependent_on.add(e_sig)
+                        c.enum.dependents.add(k)
 
             if r.parent_table:
                 pt = self.relations[r.parent_table]
-                r.dependent_on.append(r.parent_table)
-                pt.dependents.append(r.signature)
+                r.dependent_on.add(r.parent_table)
+                pt.dependents.add(r.signature)
 
     def get_dependency_by_signature(self, signature):
         things = [self.selectables, self.enums, self.triggers]
@@ -1449,11 +1469,9 @@ class PostgreSQL(DBInspector):
 
         for k, x in self.selectables.items():
             d_all = get_related_for_item(x, "dependent_on")[1:]
-            d_all.sort()
-            x.dependent_on_all = d_all
+            x.dependent_on_all = set(d_all)
             d_all = get_related_for_item(x, "dependents")[1:]
-            d_all.sort()
-            x.dependents_all = d_all
+            x.dependents_all = set(d_all)
 
     def dependency_order(
         self,
@@ -1475,12 +1493,12 @@ class PostgreSQL(DBInspector):
             things.update(self.triggers)
 
         for k, x in things.items():
-            dependent_on = list(x.dependent_on)
+            dependent_on = x.dependent_on
 
             if k in self.tables and x.parent_table:
-                dependent_on.append(x.parent_table)
+                dependent_on.add(x.parent_table)
 
-            graph[k] = list(x.dependent_on)
+            graph[k] = x.dependent_on
 
         if include_fk_deps:
             fk_deps = {}
@@ -1778,9 +1796,14 @@ class PostgreSQL(DBInspector):
                 returntype=f.returntype,
                 kind=f.kind,
             )
-
-            identity_arguments = "({}) RETURNS {}".format(s.identity_arguments, s.result_string)
-            self.functions[s.quoted_full_name + identity_arguments] = s
+            if f.kind != "p":
+                identity_arguments = "({}) RETURNS {}".format(
+                    s.identity_arguments, s.result_string
+                )
+                self.functions[s.quoted_full_name + identity_arguments] = s
+            else:
+                identity_arguments = "({})".format(s.identity_arguments)
+                self.functions[s.quoted_full_name + identity_arguments] = s
 
     def load_aggregate_functions(self):
         q = self.execute(self.AGG_FUNCTIONS_QUERY)
@@ -1800,16 +1823,11 @@ class PostgreSQL(DBInspector):
                 aggtransspace=i.aggtransspace,
                 agginitval=i.agginitval,
                 aggminitval=i.aggminitval,
-                state_type=i.state_type
+                state_type=i.state_type,
             )
             for i in q
         ]
-        self.aggregate_functions = od(
-            (i.identity_signature , i) for i in agg_functions
-        )
-
-
-
+        self.aggregate_functions = od((i.identity_signature, i) for i in agg_functions)
 
     def load_triggers(self):
         q = self.execute(self.TRIGGERS_QUERY)
@@ -1955,7 +1973,7 @@ class PostgreSQL(DBInspector):
         """
 
         return (
-            type(self) == type(other)
+            type(self) is type(other)
             and self.schemas == other.schemas
             and self.relations == other.relations
             and self.sequences == other.sequences
@@ -1963,7 +1981,7 @@ class PostgreSQL(DBInspector):
             and self.constraints == other.constraints
             and self.extensions == other.extensions
             and self.functions == other.functions
-            and self.agg_functions == other.agg_functions
+            and self.aggregate_functions == other.aggregate_functions
             and self.triggers == other.triggers
             and self.collations == other.collations
             and self.rlspolicies == other.rlspolicies

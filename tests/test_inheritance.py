@@ -1,6 +1,7 @@
 from sqlbag import S
 
 from schemainspect import get_inspector
+from sqlalchemy import text
 
 INHERITANCE = """
 
@@ -14,7 +15,7 @@ create table child (a integer, b integer) inherits (parent);
 
 def test_inheritance(db):
     with S(db) as s:
-        s.execute(INHERITANCE)
+        s.execute(text(INHERITANCE))
 
         ii = get_inspector(s)
 
@@ -38,8 +39,8 @@ def test_inheritance(db):
         for c in "a b".split():
             child.columns[c].is_inherited is False
 
-        assert parent.dependents == ['"public"."child"']
-        assert child.dependent_on == ['"public"."parent"']
+        assert parent.dependents == {'"public"."child"'}
+        assert child.dependent_on == {'"public"."parent"'}
 
 
 def test_table_dependency_order(db):
@@ -48,7 +49,7 @@ def test_table_dependency_order(db):
 
         if i.pg_version <= 9:
             return
-        s.execute(INHERITANCE)
+        s.execute(text(INHERITANCE))
 
         ii = get_inspector(s)
 

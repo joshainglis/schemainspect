@@ -1,6 +1,7 @@
 from sqlbag import S
 
 from schemainspect import get_inspector
+from sqlalchemy import text
 
 FUNC = """
 
@@ -24,19 +25,20 @@ $$;
 
 def test_kinds(db):
     with S(db) as s:
-        s.execute(FUNC)
+        s.execute(text(FUNC))
 
         i = get_inspector(s)
-        f = i.functions['"public"."ordinary_f"(t text)']
+        f = i.functions['"public"."ordinary_f"(t text) RETURNS integer']
 
         assert f.definition == "select\r\n1"
         assert f.kind == "f"
 
         if i.pg_version < 11:
             return
-        s.execute(PROC)
+        s.execute(text(PROC))
         i = get_inspector(s)
 
+        print(i.functions.keys())
         if i.pg_version < 14:
             p = i.functions['"public"."proc"(a integer, b integer)']
         else:
@@ -59,18 +61,17 @@ def test_kinds(db):
 
 def test_long_identifiers(db):
     with S(db) as s:
-
         for i in range(50, 70):
             ident = "x" * i
             truncated = "x" * min(i, 63)
 
             func = FUNC.replace("ordinary_f", ident)
 
-            s.execute(func)
+            s.execute(text(func))
 
             i = get_inspector(s)
 
-            expected_sig = '"public"."{}"(t text)'.format(truncated)
+            expected_sig = '"public"."{}"(t text) RETURNS integer'.format(truncated)
 
             f = i.functions[expected_sig]
 

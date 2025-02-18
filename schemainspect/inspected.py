@@ -30,7 +30,7 @@ class Inspected(AutoRepr):
         return not self == other
 
 
-class TableRelated(object):
+class TableRelated:
     @property
     def quoted_full_table_name(self):
         return "{}.{}".format(
@@ -87,7 +87,6 @@ class ColumnInfo(AutoRepr):
         )
 
     def alter_clauses(self, other):
-
         # ordering:
         # identify must be dropped before notnull
         # notnull must be added before identity
@@ -301,10 +300,10 @@ class InspectedSelectable(Inspected):
         self.columns = columns
         self.definition = definition
         self.relationtype = relationtype
-        self.dependent_on = dependent_on or []
-        self.dependents = dependents or []
-        self.dependent_on_all = []
-        self.dependents_all = []
+        self.dependent_on = set(dependent_on or [])
+        self.dependents = set(dependents or [])
+        self.dependent_on_all = set()
+        self.dependents_all = set()
         self.constraints = od()
         self.indexes = od()
         self.comment = comment
@@ -316,7 +315,7 @@ class InspectedSelectable(Inspected):
 
     def __eq__(self, other):
         equalities = (
-            type(self) == type(other),
+            type(self) is type(other),
             self.relationtype == other.relationtype,
             self.name == other.name,
             self.schema == other.schema,

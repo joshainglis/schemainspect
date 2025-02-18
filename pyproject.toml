@@ -1,37 +1,30 @@
-[tool.poetry]
+[project]
 name = "schemainspect"
 version = "3.1"
-authors = ["Robert Lechte <robertlechte@gmail.com>"]
-license = "Unlicense"
-readme = "README.md"
 description = "Schema inspection for PostgreSQL (and possibly others)"
+authors = [{ name = "Robert Lechte", email = "robertlechte@gmail.com" }]
+requires-python = ">=3.9,<4"
+readme = "README.md"
+license = "Unlicense"
+dependencies = ["sqlalchemy"]
 
-repository = "https://github.com/djrobstep/schemainspect"
-homepage = "https://github.com/djrobstep/schemainspect"
+[project.urls]
+Homepage = "https://github.com/djrobstep/schemainspect"
+Repository = "https://github.com/djrobstep/schemainspect"
 
-[tool.poetry.dependencies]
-python = ">=3.9,<4"
-sqlalchemy = "*"
+[project.scripts]
+schemainspect = "schemainspect:do_command"
 
-[tool.poetry.dev-dependencies]
-sqlbag = ">=0.1.1616028516"
-pytest = "*"
-pytest-cov = "*"
-pytest-clarity = "*"
-psycopg2-binary = "*"
-flake8 = "*"
-isort = "5.10.1"
-migra = "*"
-black = "22.3.0"
-toml = "*"
-pre-commit = "*"
-
-[tool.poetry.scripts]
-schemainspect = 'schemainspect:do_command'
-
-[tool.isort]
-profile = "black"
+[dependency-groups]
+dev = [
+    "sqlbag",
+    "pytest",
+    "pytest-cov",
+    "pytest-clarity",
+]
+[tool.uv.sources]
+sqlbag = { git = "https://github.com/joshainglis/sqlbag", branch = "master" }
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"

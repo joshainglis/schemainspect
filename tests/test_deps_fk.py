@@ -1,6 +1,7 @@
 from sqlbag import S
 
 from schemainspect import get_inspector
+from sqlalchemy import text
 
 CREATES = """
     create extension pg_trgm;
@@ -77,7 +78,7 @@ def test_dep_order(db):
             return
 
         # s.execute(CREATES)
-        s.execute(CREATES_FK)
+        s.execute(text(CREATES_FK))
 
         i = get_inspector(s)
 
@@ -94,13 +95,13 @@ def test_dep_order(db):
             thing = i.get_dependency_by_signature(x)
 
             drop = thing.drop_statement
-            s.execute(drop)
+            s.execute(text(drop))
 
         for x in create_order:
             thing = i.get_dependency_by_signature(x)
 
             create = thing.create_statement
-            s.execute(create)
+            s.execute(text(create))
 
 
 def test_fk_info(db):
@@ -110,7 +111,7 @@ def test_fk_info(db):
         if i.pg_version <= 10:
             return
 
-        s.execute(CREATES_FK)
+        s.execute(text(CREATES_FK))
 
         i = get_inspector(s)
 
@@ -136,7 +137,7 @@ def test_fk_col_order(db):
         if i.pg_version <= 10:
             return
 
-        s.execute(TRICKY_ORDER)
+        s.execute(text(TRICKY_ORDER))
 
         i = get_inspector(s)
 
@@ -161,7 +162,7 @@ def test_separate_validate(db):
         if i.pg_version <= 10:
             return
 
-        s.execute(TRICKY_ORDER)
+        s.execute(text(TRICKY_ORDER))
 
         i = get_inspector(s)
 
@@ -169,10 +170,10 @@ def test_separate_validate(db):
 
         assert fk.can_use_not_valid
 
-        s.execute(fk.drop_statement)
+        s.execute(text(fk.drop_statement))
 
         for ss in fk.safer_create_statements:
-            s.execute(ss)
+            s.execute(text(ss))
 
         i = get_inspector(s)
 

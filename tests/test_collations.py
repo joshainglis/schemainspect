@@ -1,6 +1,7 @@
 from sqlbag import S
 
 from schemainspect import get_inspector
+from sqlalchemy import text
 
 
 def test_collations(db):
@@ -11,7 +12,7 @@ def test_collations(db):
             return
 
         s.execute(
-            """
+            text("""
 CREATE TABLE measurement (
     city_id         int not null,
     logdate         date not null,
@@ -22,8 +23,8 @@ CREATE TABLE measurement (
 create schema x;
 
 CREATE COLLATION x.german (provider = icu, locale = 'de-DE-x-icu');
-CREATE COLLATION naturalsort (provider = icu, locale = 'en-u-kn-true');
-        """
+CREATE COLLATION naturalsort (provider = icu, locale = 'en-u-kn');
+        """)
         )
 
         i = get_inspector(s)
@@ -38,7 +39,7 @@ CREATE COLLATION naturalsort (provider = icu, locale = 'en-u-kn-true');
     nc = i.collations['"public"."naturalsort"']
     assert (
         nc.create_statement
-        == """create collation if not exists "public"."naturalsort" (provider = 'icu', locale = 'en-u-kn-true');"""
+        == """create collation if not exists "public"."naturalsort" (provider = 'icu', locale = 'en-u-kn');"""
     )
 
     assert gc == gc
@@ -46,13 +47,13 @@ CREATE COLLATION naturalsort (provider = icu, locale = 'en-u-kn-true');
 
     with S(db) as s:
         s.execute(
-            """
+            text("""
 CREATE TABLE tt (
     id         int,
     t text,
     tde text collate "POSIX"
 );
-        """
+        """)
         )
 
     i = get_inspector(s)

@@ -10,6 +10,7 @@ import sqlalchemy.exc
 from psycopg2.extras import NamedTupleCursor
 from pytest import raises
 from sqlbag import S, temporary_database
+from sqlalchemy import text, DDL
 
 import schemainspect
 from schemainspect import NullInspector, get_inspector, to_pytype
@@ -66,22 +67,22 @@ FDEF = """CREATE OR REPLACE FUNCTION public.films_f(d date, def_t text DEFAULT N
  LANGUAGE sql
 AS $function$select 'a'::varchar, '2014-01-01'::date$function$
 ;"""
-VDEF = """create or replace view "public"."v_films" as  SELECT films.code,
-    films.title,
-    films.did,
-    films.date_prod,
-    films.kind,
-    films.len,
-    films.drange
+VDEF = """create or replace view "public"."v_films" as  SELECT code,
+    title,
+    did,
+    date_prod,
+    kind,
+    len,
+    drange
    FROM films;
 """
-MVDEF = """create materialized view "public"."mv_films" as  SELECT films.code,
-    films.title,
-    films.did,
-    films.date_prod,
-    films.kind,
-    films.len,
-    films.drange
+MVDEF = """create materialized view "public"."mv_films" as  SELECT code,
+    title,
+    did,
+    date_prod,
+    kind,
+    len,
+    drange
    FROM films;
 """
 
@@ -240,12 +241,12 @@ def test_postgres_objects():
 
 
 def setup_pg_schema(s):
-    s.execute("create table emptytable()")
-    s.execute("comment on table emptytable is 'emptytable comment'")
-    s.execute("create extension pg_trgm")
-    s.execute("create schema otherschema")
+    s.execute(text("create table emptytable()"))
+    s.execute(text("comment on table emptytable is 'emptytable comment'"))
+    s.execute(text("create extension pg_trgm"))
+    s.execute(text("create schema otherschema"))
     s.execute(
-        """
+        text("""
         CREATE TABLE films (
             code        char(5) CONSTRAINT firstkey PRIMARY KEY,
             title       varchar NOT NULL,
@@ -256,18 +257,18 @@ def setup_pg_schema(s):
             drange      daterange
         );
         grant select, update, delete, insert on table films to postgres;
-    """
+    """)
     )
-    s.execute("""CREATE VIEW v_films AS (select * from films)""")
-    s.execute("""CREATE VIEW v_films2 AS (select * from v_films)""")
+    s.execute(text("""CREATE VIEW v_films AS (select * from films)"""))
+    s.execute(text("""CREATE VIEW v_films2 AS (select * from v_films)"""))
     s.execute(
-        """
+        text("""
             CREATE MATERIALIZED VIEW mv_films
             AS (select * from films)
-        """
+        """)
     )
     s.execute(
-        """
+        text("""
             CREATE or replace FUNCTION films_f(d date,
             def_t text default null,
             def_d date default '2014-01-01'::date)
@@ -277,58 +278,60 @@ def setup_pg_schema(s):
             )
             as $$select 'a'::varchar, '2014-01-01'::date$$
             language sql;
-        """
+        """)
     )
-    s.execute("comment on function films_f(date, text, date) is 'films_f comment'")
     s.execute(
-        """
+        text("comment on function films_f(date, text, date) is 'films_f comment'")
+    )
+    s.execute(
+        text("""
         CREATE OR REPLACE FUNCTION inc_f(integer) RETURNS integer AS $$
         BEGIN
                 RETURN $1 + 1;
         END;
         $$ LANGUAGE plpgsql stable;
-    """
+    """)
     )
     s.execute(
-        """
+        text("""
         CREATE OR REPLACE FUNCTION inc_f_out(integer, out outparam integer) returns integer AS $$
                 select 1;
         $$ LANGUAGE sql;
-    """
+    """)
     )
     s.execute(
-        """
+        text("""
         CREATE OR REPLACE FUNCTION inc_f_noargs() RETURNS void AS $$
         begin
             perform 1;
         end;
         $$ LANGUAGE plpgsql stable;
-    """
+    """)
     )
     s.execute(
-        """
+        text("""
             create index on films(title);
-    """
+    """)
     )
     s.execute(
-        """
+        text("""
             create index on mv_films(title);
-    """
+    """)
     )
     s.execute(
-        """
+        text("""
             create type ttt as (a int, b text);
-    """
+    """)
     )
     s.execute(
-        """
+        text("""
             create type abc as enum ('a', 'b', 'c');
-    """
+    """)
     )
     s.execute(
-        """
+        text("""
             create table t_abc (id serial, x abc);
-    """
+    """)
     )
 
 
@@ -345,8 +348,8 @@ def asserts_pg(i, has_timescale=False):
     assert otherschema.drop_statement == 'drop schema if exists "otherschema";'
 
     # to_pytype
-    assert to_pytype(i.dialect, "integer") == int
-    assert to_pytype(i.dialect, "nonexistent") == type(None)  # noqa
+    assert to_pytype(i.dialect, "integer") is int
+    assert to_pytype(i.dialect, "nonexistent") is type(None)  # noqa
 
     # dialect
     assert i.dialect.name == "postgresql"
@@ -366,9 +369,9 @@ def asserts_pg(i, has_timescale=False):
     v = i.views[v_films]
 
     # dependencies
-    assert v.dependent_on == [films]
+    assert v.dependent_on == {films}
     v = i.views[v_films2]
-    assert v.dependent_on == [v_films]
+    assert v.dependent_on == {v_films}
 
     for k, r in i.relations.items():
         for dependent in r.dependents:
@@ -388,10 +391,13 @@ def asserts_pg(i, has_timescale=False):
     assert n("mv_films_title_idx") in mv.indexes
 
     # functions
-    films_f = n("films_f") + "(d date, def_t text, def_d date)"
-    inc_f = n("inc_f") + "(integer)"
-    inc_f_noargs = n("inc_f_noargs") + "()"
-    inc_f_out = n("inc_f_out") + "(integer, OUT outparam integer)"
+    films_f = (
+        n("films_f")
+        + "(d date, def_t text, def_d date) RETURNS TABLE(title character varying, release_date date)"
+    )
+    inc_f = n("inc_f") + "(integer) RETURNS integer"
+    inc_f_noargs = n("inc_f_noargs") + "() RETURNS void"
+    inc_f_out = n("inc_f_out") + "(integer, OUT outparam integer) RETURNS integer"
     public_funcs = [k for k, v in i.functions.items() if v.schema == "public"]
     assert public_funcs == [films_f, inc_f, inc_f_noargs, inc_f_out]
     f = i.functions[films_f]
@@ -498,7 +504,7 @@ def asserts_pg(i, has_timescale=False):
 
 def test_weird_names(db):
     with S(db) as s:
-        s.execute("""create table "a(abc=3)"(id text)  """)
+        s.execute(text("""create table "a(abc=3)"(id text)  """))
         i = get_inspector(s)
         assert list(i.tables.keys())[0] == '"public"."a(abc=3)"'
 
@@ -511,13 +517,13 @@ def test_identity_columns(db):
             pytest.skip("identity columns not supported in 9")
 
         s.execute(
-            """create table t(
+            text("""create table t(
             a int,
             b int default 1,
             --c int generated always as (1) stored,
             d int generated always as identity,
             e int generated by default as identity
-        ) """
+        ) """)
         )
         i = get_inspector(s)
 
@@ -563,9 +569,9 @@ def test_generated_columns(db):
             pytest.skip("generated columns not supported in < 12")
 
         s.execute(
-            """create table t(
+            text("""create table t(
                 c int generated always as (1) stored
-        ) """
+        ) """)
         )
 
         i = get_inspector(s)
@@ -596,21 +602,21 @@ def test_sequences(db):
             pytest.skip("identity columns not supported in 9")
 
         s.execute(
-            """
+            text("""
         create table t(id serial);
-        """
+        """)
         )
 
         s.execute(
-            """
+            text("""
         CREATE SEQUENCE serial START 101;
-        """
+        """)
         )
 
         s.execute(
-            """
+            text("""
         create table t2(id integer generated always as identity);
-        """
+        """)
         )
 
         i = get_inspector(s)
@@ -643,7 +649,7 @@ def test_timescale_inspect(db):
 def assert_postgres_inspect(db, has_timescale=False):
     with S(db) as s:
         if has_timescale:
-            s.execute("create extension if not exists timescaledb;")
+            s.execute(DDL("create extension if not exists timescaledb"))
         setup_pg_schema(s)
         i = get_inspector(s)
         asserts_pg(i, has_timescale)
@@ -654,7 +660,7 @@ def test_empty():
     x = NullInspector()
     assert x.tables == od()
     assert x.relations == od()
-    assert type(schemainspect.get_inspector(None)) == NullInspector
+    assert type(schemainspect.get_inspector(None)) is NullInspector
 
 
 @contextmanager

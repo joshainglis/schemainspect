@@ -253,6 +253,5 @@ class TopologicalSorter:
         while self.is_active():
             node_group = self.get_ready()
 
-            for each in node_group:
-                yield each
+            yield from node_group
             self.done(*node_group)

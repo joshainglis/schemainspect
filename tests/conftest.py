@@ -4,7 +4,7 @@ from sqlbag import temporary_database
 
 @pytest.fixture()
 def db():
-    with temporary_database(host="localhost") as dburi:
+    with temporary_database() as dburi:
         yield dburi
 
 

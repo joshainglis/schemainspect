@@ -1,6 +1,7 @@
 from sqlbag import S
 
 from schemainspect import get_inspector
+from sqlalchemy import text
 
 CREATE = """
 create table t (
@@ -20,7 +21,7 @@ def test_exclusion_constraint(db):
     - No explicit index creation
     """
     with S(db) as s:
-        s.execute(CREATE)
+        s.execute(text(CREATE))
 
         i = get_inspector(s)
         constraints_keys = list(i.constraints.keys())

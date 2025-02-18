@@ -8,8 +8,12 @@ select
   end
   as provider,
   collencoding as encoding,
-  collcollate as lc_collate,
-  collctype as lc_ctype,
+  -- 17_OR_LATER coalesce(collcollate, colllocale) as lc_collate,
+  -- 17_OR_LATER coalesce(collctype, colllocale) as lc_ctype,
+  -- 15_OR_16 coalesce(collcollate, colliculocale) as lc_collate,
+  -- 15_OR_16 coalesce(collctype, colliculocale) as lc_ctype,
+  -- 14_OR_BELOW collcollate as lc_collate,
+  -- 14_OR_BELOW collctype as lc_ctype,
   collversion as version
 from
 pg_collation c

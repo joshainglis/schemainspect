@@ -1,7 +1,6 @@
 import inspect
 from reprlib import recursive_repr
-
-from pkg_resources import resource_stream as pkg_resource_stream
+import importlib.resources
 
 
 def connection_from_s_or_c(s_or_c):  # pragma: no cover
@@ -42,7 +41,9 @@ class AutoRepr:  # pragma: no cover
         return not self == other
 
 
-def unquoted_identifier(identifier, *, schema=None, identity_arguments=None, return_type=None):
+def unquoted_identifier(
+    identifier, *, schema=None, identity_arguments=None, return_type=None
+):
     if identifier is None and schema is not None:
         return schema
     s = "{}".format(identifier)
@@ -53,7 +54,9 @@ def unquoted_identifier(identifier, *, schema=None, identity_arguments=None, ret
     return s
 
 
-def quoted_identifier(identifier, schema=None, identity_arguments=None, return_type=None):
+def quoted_identifier(
+    identifier, schema=None, identity_arguments=None, return_type=None
+):
     if identifier is None and schema is not None:
         return '"{}"'.format(schema.replace('"', '""'))
     s = '"{}"'.format(identifier.replace('"', '""'))
@@ -72,9 +75,13 @@ def external_caller():
 
 def resource_stream(subpath):
     module_name = external_caller()
-    return pkg_resource_stream(module_name, subpath)
+    return importlib.resources.files(module_name).joinpath(subpath).open("rb")
 
 
 def resource_text(subpath):
-    with resource_stream(subpath) as f:
-        return f.read().decode("utf-8")
+    module_name = external_caller()
+    return (
+        importlib.resources.files(module_name)
+        .joinpath(subpath)
+        .read_text(encoding="utf-8")
+    )

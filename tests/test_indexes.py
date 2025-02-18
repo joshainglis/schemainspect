@@ -1,6 +1,7 @@
 from sqlbag import S
 
 from schemainspect import get_inspector
+from sqlalchemy import text
 
 CREATE = """
 DROP SCHEMA IF EXISTS it CASCADE;
@@ -25,12 +26,12 @@ CREATE INDEX brin_index ON it.foo USING BRIN (a);
 
 def test_indexes(db):
     with S(db) as s:
-        s.execute(CREATE)
+        s.execute(text(CREATE))
         i1 = get_inspector(s, schema="it")
 
         # Recreate schema.
         # Functions oids will be changed
-        s.execute(CREATE)
+        s.execute(text(CREATE))
         i2 = get_inspector(s, schema="it")
 
         assert i1.indexes == i2.indexes
@@ -44,7 +45,7 @@ create table t(id uuid primary key, x bigint);
 
 def test_constraints(db):
     with S(db) as s:
-        s.execute(CREATE_CONST)
+        s.execute(text(CREATE_CONST))
 
         i = get_inspector(s)
         constraints_keys = list(i.constraints.keys())
@@ -100,7 +101,7 @@ def test_index_defs(db):
 
         if ii.pg_version <= 10:
             return
-        s.execute(INDEX_DEFS)
+        s.execute(text(INDEX_DEFS))
 
         ii = get_inspector(s)
 

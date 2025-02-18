@@ -1,6 +1,7 @@
 from sqlbag import S
 
 from schemainspect import get_inspector
+from sqlalchemy import text
 
 BASE = """
 CREATE TABLE "my_table" (
@@ -33,7 +34,7 @@ FOR EACH ROW EXECUTE PROCEDURE my_function();
 
 def test_view_trigger(db):
     with S(db) as s:
-        s.execute(BASE)
+        s.execute(text(BASE))
         i = get_inspector(s)
 
         trigger = i.triggers['"public"."view_on_table"."trigger_on_view"']
@@ -44,7 +45,7 @@ def test_view_trigger(db):
 
 def test_replica_trigger(db):
     with S(db) as s:
-        s.execute(BASE)
+        s.execute(text(BASE))
         function = """
         CREATE OR REPLACE FUNCTION table_trigger_function()
             RETURNS trigger
@@ -56,11 +57,13 @@ def test_replica_trigger(db):
         $function$
         ;
         """
-        s.execute(function)
+        s.execute(text(function))
         s.execute(
-            "CREATE TRIGGER table_trigger AFTER INSERT ON my_table FOR EACH ROW EXECUTE PROCEDURE table_trigger_function();"
+            text(
+                "CREATE TRIGGER table_trigger AFTER INSERT ON my_table FOR EACH ROW EXECUTE PROCEDURE table_trigger_function();"
+            )
         )
-        s.execute("ALTER TABLE my_table ENABLE REPLICA TRIGGER table_trigger;")
+        s.execute(text("ALTER TABLE my_table ENABLE REPLICA TRIGGER table_trigger;"))
 
         i = get_inspector(s)
 

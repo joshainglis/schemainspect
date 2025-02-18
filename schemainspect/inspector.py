@@ -10,11 +10,11 @@ def to_pytype(sqla_dialect, typename):
     try:
         return sqla_obj.python_type
 
-    except (NotImplementedError):
+    except NotImplementedError:
         return type(sqla_obj)
 
 
-class DBInspector(object):
+class DBInspector:
     def __init__(self, c, include_internal=False):
         self.c = c
         try:

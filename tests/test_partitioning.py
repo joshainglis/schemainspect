@@ -1,6 +1,7 @@
 from sqlbag import S
 
 from schemainspect import get_inspector
+from sqlalchemy import text
 
 
 def test_partitions(db):
@@ -10,7 +11,7 @@ def test_partitions(db):
         if i.pg_version <= 9:
             return
         s.execute(
-            """
+            text("""
 CREATE TABLE measurement (
     city_id         int not null,
     logdate         date not null,
@@ -21,7 +22,7 @@ PARTITION BY RANGE (logdate);
 
 CREATE TABLE measurement_y2006 PARTITION OF measurement
     FOR VALUES FROM ('2006-01-01') TO ('2007-01-01');
-        """
+        """)
         )
 
         i = get_inspector(s)
@@ -70,9 +71,9 @@ CREATE TABLE measurement_y2006 PARTITION OF measurement
 
     with S(db) as s:
         s.execute(
-            """
+            text("""
 CREATE TABLE plain (id int);
-        """
+        """)
         )
 
     i = get_inspector(s)
@@ -93,7 +94,7 @@ def test_inherit(db):
         if i.pg_version <= 9:
             return
         s.execute(
-            """
+            text("""
 CREATE TABLE entity_bindings (
     id BIGSERIAL,
     entity_type TEXT NOT NULL,
@@ -114,7 +115,7 @@ CREATE TABLE entity_bindings_C (
     UNIQUE("entity_id", "entity_type")
 ) INHERITS (entity_bindings)
 ;
-        """
+        """)
         )
 
         i = get_inspector(s)

@@ -6,9 +6,7 @@ from .test_all import setup_pg_schema
 
 
 def asserts_pg_singleschema(i, schema_name):
-    for (
-        prop
-    ) in "schemas relations tables views functions selectables sequences enums constraints rlspolicies".split():
+    for prop in "schemas relations tables views functions selectables sequences enums constraints rlspolicies".split():
         att = getattr(i, prop)
         for k, v in att.items():
             assert v.schema == schema_name

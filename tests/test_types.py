@@ -1,6 +1,7 @@
 from sqlbag import S
 
 from schemainspect import get_inspector
+from sqlalchemy import text
 
 CHECK = r"CHECK (VALUE ~ '^\d{5}$'::text OR VALUE ~ '^\d{5}-\d{4}$'::text)"
 
@@ -9,9 +10,7 @@ CREATE TYPE compfoo AS (f1 int, f2 text);
 
 CREATE DOMAIN us_postal_code AS TEXT
 {};
-""".format(
-    CHECK
-)
+""".format(CHECK)
 
 
 FUNC_N = """
@@ -25,16 +24,16 @@ create or replace function "public"."depends_on_vvv"(t text)
 
 def test_lineendings(db):
     with S(db) as s:
-        s.execute(FUNC_N)
+        s.execute(text(FUNC_N))
         i = get_inspector(s)
-        f = i.functions['"public"."depends_on_vvv"(t text)']
+        f = i.functions['"public"."depends_on_vvv"(t text) RETURNS integer']
 
         assert f.definition == "select\r\n1"
 
 
 def test_types_and_domains(db):
     with S(db) as s:
-        s.execute(CREATE)
+        s.execute(text(CREATE))
         i = get_inspector(s)
 
         compfoo = i.types['"public"."compfoo"']
@@ -52,7 +51,7 @@ create type "public"."compfoo" as (
 
         compfoo.name = "compfoo2"
 
-        s.execute(compfoo.create_statement)
+        s.execute(text(compfoo.create_statement))
 
         i = get_inspector(s)
         c1 = i.types['"public"."compfoo"']
@@ -77,11 +76,9 @@ as text
 null
 {}
 
-""".format(
-                CHECK
-            )
+""".format(CHECK)
         )
         assert postal.drop_statement == """drop domain "public"."us_postal_code";"""
 
         postal.name = "postal2"
-        s.execute(postal.create_statement)
+        s.execute(text(postal.create_statement))

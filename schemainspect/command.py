@@ -30,7 +30,9 @@ def do_deps(db_url):
         deps = i.deps
 
     def process_row(dep):
-        depends_on = quoted_identifier(dep.name, dep.schema, dep.identity_arguments, dep.result)
+        depends_on = quoted_identifier(
+            dep.name, dep.schema, dep.identity_arguments, dep.result
+        )
         thing = quoted_identifier(
             dep.name_dependent_on,
             dep.schema_dependent_on,

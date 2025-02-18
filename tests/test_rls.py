@@ -1,15 +1,16 @@
 from sqlbag import S
 
 from schemainspect import get_inspector
+from sqlalchemy import text
 
 schemainspect_test_role = "schemainspect_test_role"
 
 
 def create_role(s, rolename):
     role = s.execute(
-        """
+        text("""
 SELECT 1 FROM pg_roles WHERE rolname=:rolename
-    """,
+    """),
         dict(rolename=rolename),
     )
 
@@ -17,10 +18,10 @@ SELECT 1 FROM pg_roles WHERE rolname=:rolename
 
     if not role_exists:
         s.execute(
-            """
+            text(
+                """
             create role {rolename};
-        """.format(
-                rolename=rolename
+        """.format(rolename=rolename)
             )
         )
 
@@ -33,9 +34,9 @@ def test_rls(db):
             return
 
         s.execute(
-            """
+            text("""
 CREATE TABLE t(id uuid, a text, b decimal);
-        """
+        """)
         )
 
         i = get_inspector(s)
@@ -48,7 +49,7 @@ CREATE TABLE t(id uuid, a text, b decimal);
         )
 
         t.rowsecurity = True
-        s.execute(t.alter_rls_statement)
+        s.execute(text(t.alter_rls_statement))
         i = get_inspector(s)
         t = i.tables['"public"."t"']
         assert t.rowsecurity is True
@@ -60,7 +61,8 @@ CREATE TABLE t(id uuid, a text, b decimal);
         create_role(s, schemainspect_test_role)
 
         s.execute(
-            """
+            text(
+                """
 
 CREATE TABLE accounts (manager text, company text, contact_email text);
 
@@ -76,8 +78,7 @@ for insert
 to {schemainspect_test_role}
 with check (manager = (CURRENT_USER)::text);
 
-        """.format(
-                schemainspect_test_role=schemainspect_test_role
+        """.format(schemainspect_test_role=schemainspect_test_role)
             )
         )
 
@@ -115,8 +116,8 @@ using ((manager = (CURRENT_USER)::text));
             t.drop_statement == 'drop policy "account_managers" on "public"."accounts";'
         )
 
-        s.execute(t.drop_statement)
-        s.execute(t.create_statement)
+        s.execute(text(t.drop_statement))
+        s.execute(text(t.create_statement))
         i = get_inspector(s)
         t = i.rlspolicies[pname]
         assert t.name == "account_managers"
