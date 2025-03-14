@@ -1,3 +1,4 @@
+import re
 import textwrap
 from collections import OrderedDict as od
 from itertools import groupby
@@ -1887,10 +1888,10 @@ class PostgreSQL(DBInspector):
             raise ValueError("Can only have schema or exclude schema, not both")
 
         def equal_to_schema(x):
-            return x.schema in schema
+            return any(re.match(s, x.schema) for s in exclude_schema)
 
         def not_equal_to_exclude_schema(x):
-            return x.schema not in exclude_schema
+            return not any(re.match(s, x.schema) for s in exclude_schema)
 
         if schema:
             comparator = equal_to_schema
