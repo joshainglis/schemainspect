@@ -1,6 +1,6 @@
 [project]
 name = "schemainspect"
-version = "3.1"
+version = "4.0.0"
 description = "Schema inspection for PostgreSQL (and possibly others)"
 authors = [{ name = "Robert Lechte", email = "robertlechte@gmail.com" }]
 requires-python = ">=3.9,<4"
@@ -20,10 +20,9 @@ dev = [
     "sqlbag",
     "pytest",
     "pytest-cov",
-    "pytest-clarity",
 ]
 [tool.uv.sources]
-sqlbag = { git = "https://github.com/joshainglis/sqlbag", branch = "master" }
+sqlbag = { git = "https://github.com/joshainglis/sqlbag", rev="f6dc7f574db5b7f500c9f1aa18818ab56b74cd91" }
 
 [build-system]
 requires = ["hatchling"]
