@@ -5,36 +5,35 @@
   ...
 }:
 let
-  postgresql = pkgs.postgresql_16.overrideAttrs {
-    icuSupport = true;
-    icu = pkgs.icu;
-  };
+  postgresql = pkgs.postgresql_16;
+  python = pkgs.python312;
+  sqlbag = python.pkgs.callPackage ./nix/dependencies/sqlbag.nix { };
+  schemainspect = python.pkgs.callPackage ./package.nix { inherit sqlbag; };
 in
 {
   packages = [
+    pkgs.git
     postgresql
+    python
+    schemainspect
     config.languages.python.package.pkgs.psycopg2
+    config.languages.python.package.pkgs.sqlalchemy
+    config.languages.python.package.pkgs.pytest
+    config.languages.python.package.pkgs.pytest-cov
+    config.languages.python.package.pkgs.packaging
+    config.languages.python.package.pkgs.hatchling
+    config.languages.python.package.pkgs.uv
   ];
 
   languages.python = {
     enable = true;
     package = pkgs.python312;
-    uv = {
-      enable = true;
-      sync = {
-        enable = true;
-        allExtras = true;
-      };
-    };
-    venv.enable = true;
   };
 
   services.postgres.enable = true;
-  services.postgres.package = pkgs.postgresql_16;
+  services.postgres.package = postgresql;
+  services.postgres.listen_addresses = "127.0.0.1";
   services.postgres.extensions = ext: [ ext.timescaledb ];
-  services.postgres.settings.log_min_messages = "NOTICE";
-  services.postgres.settings.client_min_messages = "NOTICE";
-  services.postgres.settings.log_min_error_statement = "NOTICE";
   services.postgres.settings.shared_preload_libraries = "timescaledb";
   services.postgres.initialScript = "CREATE ROLE postgres SUPERUSER;";
 
@@ -45,12 +44,12 @@ in
   scripts.reset.exec = ''
     rm -rf $DEVENV_STATE/postgres
   '';
+
   process.manager.before = ''reset'';
 
   enterTest =
     let
       pg_isready = lib.getExe' config.services.postgres.package "pg_isready";
-
     in
     ''
       echo "Running tests"
