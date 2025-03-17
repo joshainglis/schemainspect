@@ -1,28 +1,22 @@
-select
-  p.polname as name,
-  n.nspname as schema,
-  c.relname as table_name,
-  p.polcmd as commandtype,
-  p.polpermissive as permissive,
-  (
-    select
-      array_agg(
-        case when o = 0 THEN
-        'public'
-        else
-        pg_get_userbyid(o)
-        end
-      )
-    from
-    unnest(p.polroles) as unn(o)
-  )
-  as roles,
-  p.polqual as qualtree,
-  pg_get_expr(p.polqual, p.polrelid) as qual,
-  pg_get_expr(p.polwithcheck, p.polrelid) as withcheck
-from
-  pg_policy p
-  join pg_class c ON c.oid = p.polrelid
-  JOIN pg_namespace n ON n.oid = c.relnamespace
-order by
-  2, 1
+SELECT p.polname                               AS name
+     , n.nspname                               AS schema
+     , c.relname                               AS table_name
+     , p.polcmd                                AS commandtype
+     , p.polpermissive                         AS permissive
+     , (SELECT ARRAY_AGG(
+                       CASE WHEN o = 0 THEN
+                                'public'
+                            ELSE
+                                PG_GET_USERBYID(o)
+                           END
+               )
+        FROM UNNEST(p.polroles) AS unn(o))
+                                               AS roles
+     , p.polqual                               AS qualtree
+     , PG_GET_EXPR(p.polqual, p.polrelid)      AS qual
+     , PG_GET_EXPR(p.polwithcheck, p.polrelid) AS withcheck
+FROM pg_policy p
+JOIN pg_class c ON c.oid = p.polrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+ORDER BY 2
+       , 1

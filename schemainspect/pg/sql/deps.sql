@@ -1,158 +1,136 @@
-with things1 as (
-  select
-    oid as objid,
-    pronamespace as namespace,
-    proname as name,
-    pg_get_function_identity_arguments(oid) as identity_arguments,
-    pg_get_function_result(oid) as result,
-    'f' as kind,
-    null::oid as composite_type_oid
-  from pg_proc
-  -- 11_AND_LATER where pg_proc.prokind != 'a'
-  -- 10_AND_EARLIER where pg_proc.proisagg is False
-  union
-  select
-    oid,
-    relnamespace as namespace,
-    relname as name,
-    null as identity_arguments,
-    null as result,
-    relkind as kind,
-    null::oid as composite_type_oid
-  from pg_class
-  where oid not in (
-    select ftrelid from pg_foreign_table
-  )
-    union
-    select
-        oid,
-        typnamespace as namespace,
-        typname as name,
-        null as identity_arguments,
-        null as result,
-        'c' as kind,
-        typrelid::oid as composite_type_oid
-    from pg_type
-    where typrelid != 0
-),
-extension_objids as (
-  select
-      objid as extension_objid
-  from
-      pg_depend d
-  WHERE
-      d.refclassid = 'pg_extension'::regclass
-    union
-    select
-        t.typrelid as extension_objid
-    from
-        pg_depend d
-        join pg_type t on t.oid = d.objid
-    where
-        d.refclassid = 'pg_extension'::regclass
-),
-things as (
-    select
-      objid,
-      kind,
-      n.nspname as schema,
-      name,
-      identity_arguments,
-      result,
-      t.composite_type_oid
-    from things1 t
-    inner join pg_namespace n
-      on t.namespace = n.oid
-    left outer join extension_objids
-      on t.objid = extension_objids.extension_objid
-    where
-      kind in ('r', 'v', 'm', 'c', 'f') and
-      nspname not in ('pg_internal', 'pg_catalog', 'information_schema', 'pg_toast')
-      and nspname not like 'pg_temp_%' and nspname not like 'pg_toast_temp_%'
-      and extension_objids.extension_objid is null
-),
-array_dependencies as (
-  select
-    att.attrelid as objid,
-    att.attname as column_name,
-    tbl.typelem as composite_type_oid,
-    comp_tbl.typrelid as objid_dependent_on
-  from pg_attribute att
-  join pg_type tbl on tbl.oid = att.atttypid
-  join pg_type comp_tbl on tbl.typelem = comp_tbl.oid
-  where tbl.typcategory = 'A'
-),
-combined as (
-  select distinct
-    coalesce(t.composite_type_oid, t.objid),
-    t.schema,
-    t.name,
-    t.identity_arguments,
-    t.result,
-    case when t.composite_type_oid is not null then 'r' ELSE t.kind end,
-    things_dependent_on.objid as objid_dependent_on,
-    things_dependent_on.schema as schema_dependent_on,
-    things_dependent_on.name as name_dependent_on,
-    things_dependent_on.identity_arguments as identity_arguments_dependent_on,
-    things_dependent_on.result as result_dependent_on,
-    things_dependent_on.kind as kind_dependent_on
-  FROM
-      pg_depend d
-      inner join things things_dependent_on
-        on d.refobjid = things_dependent_on.objid
-      inner join pg_rewrite rw
-        on d.objid = rw.oid
-        and things_dependent_on.objid != rw.ev_class
-      inner join things t
-        on rw.ev_class = t.objid
-  where
-    d.deptype in ('n')
-    and
-    rw.rulename = '_RETURN'
-  union all
-  select distinct
-    coalesce(t.composite_type_oid, t.objid),
-    t.schema,
-    t.name,
-    t.identity_arguments,
-    t.result,
-    case when t.composite_type_oid is not null then 'r' ELSE t.kind end,
-    things_dependent_on.objid as objid_dependent_on,
-    things_dependent_on.schema as schema_dependent_on,
-    things_dependent_on.name as name_dependent_on,
-    things_dependent_on.identity_arguments as identity_arguments_dependent_on,
-    things_dependent_on.result as result_dependent_on,
-    things_dependent_on.kind as kind_dependent_on
-  FROM
-      pg_depend d
-      inner join things things_dependent_on
-        on d.refobjid = things_dependent_on.objid
-      inner join things t
-        on d.objid = t.objid
-  where
-    d.deptype in ('n')
-  union all
-  select
-    coalesce(t.composite_type_oid, t.objid),
-    t.schema,
-    t.name,
-    t.identity_arguments,
-    t.result,
-    case when t.composite_type_oid is not null then 'r' ELSE t.kind end,
-    things_dependent_on.objid as objid_dependent_on,
-    things_dependent_on.schema as schema_dependent_on,
-    things_dependent_on.name as name_dependent_on,
-    things_dependent_on.identity_arguments as identity_arguments_dependent_on,
-    things_dependent_on.result as result_dependent_on,
-    things_dependent_on.kind as kind_dependent_on
-  FROM
-    array_dependencies ad
-    inner join things things_dependent_on
-    on ad.objid_dependent_on = things_dependent_on.objid
-    inner join things t
-    on ad.objid = t.objid
-)
-select * from combined
-order by
-schema, name, identity_arguments, result, kind_dependent_on,
-schema_dependent_on, name_dependent_on, identity_arguments_dependent_on, result_dependent_on
+WITH things1            AS (SELECT oid                                     AS objid
+                                 , pronamespace                            AS namespace
+                                 , proname                                 AS name
+                                 , PG_GET_FUNCTION_IDENTITY_ARGUMENTS(oid) AS identity_arguments
+                                 , PG_GET_FUNCTION_RESULT(oid)             AS result
+                                 , 'f'                                     AS kind
+                                 , NULL::OID                               AS composite_type_oid
+                            FROM pg_proc
+                            -- 11_AND_LATER where pg_proc.prokind != 'a'
+                            -- 10_AND_EARLIER where pg_proc.proisagg is False
+                            UNION
+                            SELECT oid
+                                 , relnamespace AS namespace
+                                 , relname      AS name
+                                 , NULL         AS identity_arguments
+                                 , NULL         AS result
+                                 , relkind      AS kind
+                                 , NULL::OID    AS composite_type_oid
+                            FROM pg_class
+                            WHERE oid NOT IN (SELECT ftrelid
+                                              FROM pg_foreign_table)
+                            UNION
+                            SELECT oid
+                                 , typnamespace  AS namespace
+                                 , typname       AS name
+                                 , NULL          AS identity_arguments
+                                 , NULL          AS result
+                                 , 'c'           AS kind
+                                 , typrelid::OID AS composite_type_oid
+                            FROM pg_type
+                            WHERE typrelid != 0)
+   , extension_objids   AS (SELECT objid AS extension_objid
+                            FROM pg_depend d
+                            WHERE d.refclassid = 'pg_extension'::REGCLASS
+                            UNION
+                            SELECT t.typrelid AS extension_objid
+                            FROM pg_depend d
+                            JOIN pg_type t ON t.oid = d.objid
+                            WHERE d.refclassid = 'pg_extension'::REGCLASS)
+   , things             AS (SELECT objid
+                                 , kind
+                                 , n.nspname AS schema
+                                 , name
+                                 , identity_arguments
+                                 , result
+                                 , t.composite_type_oid
+                            FROM things1 t
+                            INNER JOIN      pg_namespace n
+                                                ON t.namespace = n.oid
+                            LEFT OUTER JOIN extension_objids
+                                                ON t.objid = extension_objids.extension_objid
+                            WHERE kind IN ('r', 'v', 'm', 'c', 'f')
+                              AND nspname NOT IN ('pg_internal', 'pg_catalog', 'information_schema', 'pg_toast')
+                              AND nspname NOT LIKE 'pg_temp_%'
+                              AND nspname NOT LIKE 'pg_toast_temp_%'
+                              AND extension_objids.extension_objid IS NULL)
+   , array_dependencies AS (SELECT att.attrelid      AS objid
+                                 , att.attname       AS column_name
+                                 , tbl.typelem       AS composite_type_oid
+                                 , comp_tbl.typrelid AS objid_dependent_on
+                            FROM pg_attribute att
+                            JOIN pg_type tbl ON tbl.oid = att.atttypid
+                            JOIN pg_type comp_tbl ON tbl.typelem = comp_tbl.oid
+                            WHERE tbl.typcategory = 'A')
+   , combined           AS (SELECT DISTINCT
+                                   COALESCE(t.composite_type_oid, t.objid)
+                                ,  t.schema
+                                ,  t.name
+                                ,  t.identity_arguments
+                                ,  t.result
+                                ,  CASE WHEN t.composite_type_oid IS NOT NULL THEN 'r' ELSE t.kind END
+                                ,  things_dependent_on.objid              AS objid_dependent_on
+                                ,  things_dependent_on.schema             AS schema_dependent_on
+                                ,  things_dependent_on.name               AS name_dependent_on
+                                ,  things_dependent_on.identity_arguments AS identity_arguments_dependent_on
+                                ,  things_dependent_on.result             AS result_dependent_on
+                                ,  things_dependent_on.kind               AS kind_dependent_on
+                            FROM pg_depend d
+                            INNER JOIN things things_dependent_on
+                                           ON d.refobjid = things_dependent_on.objid
+                            INNER JOIN pg_rewrite rw
+                                           ON d.objid = rw.oid
+                                           AND things_dependent_on.objid != rw.ev_class
+                            INNER JOIN things t
+                                           ON rw.ev_class = t.objid
+                            WHERE d.deptype IN ('n')
+                              AND rw.rulename = '_RETURN'
+                            UNION ALL
+                            SELECT DISTINCT
+                                   COALESCE(t.composite_type_oid, t.objid)
+                                ,  t.schema
+                                ,  t.name
+                                ,  t.identity_arguments
+                                ,  t.result
+                                ,  CASE WHEN t.composite_type_oid IS NOT NULL THEN 'r' ELSE t.kind END
+                                ,  things_dependent_on.objid              AS objid_dependent_on
+                                ,  things_dependent_on.schema             AS schema_dependent_on
+                                ,  things_dependent_on.name               AS name_dependent_on
+                                ,  things_dependent_on.identity_arguments AS identity_arguments_dependent_on
+                                ,  things_dependent_on.result             AS result_dependent_on
+                                ,  things_dependent_on.kind               AS kind_dependent_on
+                            FROM pg_depend d
+                            INNER JOIN things things_dependent_on
+                                           ON d.refobjid = things_dependent_on.objid
+                            INNER JOIN things t
+                                           ON d.objid = t.objid
+                            WHERE d.deptype IN ('n')
+                            UNION ALL
+                            SELECT COALESCE(t.composite_type_oid, t.objid)
+                                 , t.schema
+                                 , t.name
+                                 , t.identity_arguments
+                                 , t.result
+                                 , CASE WHEN t.composite_type_oid IS NOT NULL THEN 'r' ELSE t.kind END
+                                 , things_dependent_on.objid              AS objid_dependent_on
+                                 , things_dependent_on.schema             AS schema_dependent_on
+                                 , things_dependent_on.name               AS name_dependent_on
+                                 , things_dependent_on.identity_arguments AS identity_arguments_dependent_on
+                                 , things_dependent_on.result             AS result_dependent_on
+                                 , things_dependent_on.kind               AS kind_dependent_on
+                            FROM array_dependencies ad
+                            INNER JOIN things things_dependent_on
+                                           ON ad.objid_dependent_on = things_dependent_on.objid
+                            INNER JOIN things t
+                                           ON ad.objid = t.objid)
+SELECT *
+FROM combined
+ORDER BY schema
+       , name
+       , identity_arguments
+       , result
+       , kind_dependent_on
+       , schema_dependent_on
+       , name_dependent_on
+       , identity_arguments_dependent_on
+       , result_dependent_on
