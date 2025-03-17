@@ -1875,20 +1875,19 @@ class PostgreSQL(DBInspector):
                 i.check,
             )
             for i in q
-        ]  # type: list[InspectedType]
+        ]  # type: list[InspectedDomain]
         self.domains = od((t.signature, t) for t in domains)
 
     def filter_schema(self, schema=None, exclude_schema=None):
+        schema = schema or set()
+        exclude_schema = exclude_schema or set()
         if isinstance(schema, str):
             schema = {schema}
         if isinstance(exclude_schema, str):
             exclude_schema = {exclude_schema}
 
-        if schema and exclude_schema:
-            raise ValueError("Can only have schema or exclude schema, not both")
-
         def equal_to_schema(x):
-            return any(re.match(s, x.schema) for s in exclude_schema)
+            return any(re.match(s, x.schema) for s in schema)
 
         def not_equal_to_exclude_schema(x):
             return not any(re.match(s, x.schema) for s in exclude_schema)
