@@ -22,7 +22,7 @@ dev = [
     "pytest-cov",
 ]
 [tool.uv.sources]
-sqlbag = { git = "https://github.com/joshainglis/sqlbag", rev="f6dc7f574db5b7f500c9f1aa18818ab56b74cd91" }
+sqlbag = { git = "https://github.com/joshainglis/sqlbag", rev="6e9a5e8f176968b83c7756b95ef475ef8c3163af" }
 
 [build-system]
 requires = ["hatchling"]

@@ -27,7 +27,9 @@ in
 
   languages.python = {
     enable = true;
-    package = pkgs.python312;
+    package = python;
+    uv.enable = true;
+    venv.enable = true;
   };
 
   services.postgres.enable = true;
@@ -70,4 +72,9 @@ in
     ripsecrets.enable = true;
     trufflehog.enable = true;
   };
+
+  outputs = {
+    inherit schemainspect;
+  };
+
 }

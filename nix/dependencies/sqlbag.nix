@@ -26,8 +26,8 @@ buildPythonPackage rec {
   src = fetchFromGitHub {
     owner = "joshainglis";
     repo = "sqlbag";
-    rev = "master";
-    hash = "sha256-fvcYDC0lryCe+dXg5eDwozjUrpjbU4bBYip1nUCQW50=";
+    rev = "6e9a5e8f176968b83c7756b95ef475ef8c3163af";
+    hash = "sha256-KVyS4pUPsNeLAuJDz5iuP00jGhN+N31XIuOwh2bUXNw=";
   };
 
   nativeBuildInputs = [ hatchling ];
