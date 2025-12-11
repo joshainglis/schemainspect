@@ -59,6 +59,7 @@ SELECT nspname                                 AS schema
      , contype = 'f'                           AS is_fk
      , condeferrable                           AS is_deferrable
      , condeferred                             AS initially_deferred
+     , pg_class.relkind                        AS table_relkind
 FROM pg_constraint
 INNER JOIN      pg_class
                     ON conrelid = pg_class.oid

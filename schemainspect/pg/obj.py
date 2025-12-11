@@ -951,6 +951,7 @@ class InspectedConstraint(Inspected, TableRelated):
         is_fk=False,
         is_deferrable=False,
         initially_deferred=False,
+        table_relkind=None,
     ):
         self.name = name
         self.schema = schema
@@ -966,12 +967,17 @@ class InspectedConstraint(Inspected, TableRelated):
 
         self.is_deferrable = is_deferrable
         self.initially_deferred = initially_deferred
+        self.table_relkind = table_relkind
 
     @property
     def drop_statement(self):
         return "alter table {} drop constraint {};".format(
             self.quoted_full_table_name, self.quoted_name
         )
+
+    @property
+    def is_table_partitioned(self):
+        return self.table_relkind == "p"
 
     @property
     def deferrable_subclause(self):
@@ -993,7 +999,8 @@ class InspectedConstraint(Inspected, TableRelated):
         return self.get_create_statement(set_not_valid=False)
 
     def get_create_statement(self, set_not_valid=False):
-        if self.index and self.constraint_type != "EXCLUDE":
+        # Don't use "USING INDEX" for partitioned tables - their indexes are not valid
+        if self.index and self.constraint_type != "EXCLUDE" and not self.is_table_partitioned:
             using_clause = "{} using index {}{}".format(
                 self.constraint_type, self.quoted_name, self.deferrable_subclause
             )
@@ -1697,6 +1704,7 @@ class PostgreSQL(DBInspector):
                 is_fk=i.is_fk,
                 is_deferrable=i.is_deferrable,
                 initially_deferred=i.initially_deferred,
+                table_relkind=getattr(i, "table_relkind", None),
             )
             if constraint.index:
                 index_name = quoted_identifier(constraint.index, schema=i.schema)
