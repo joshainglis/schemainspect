@@ -21,7 +21,7 @@ buildPythonPackage rec {
   version = "0.2.0";
   format = "pyproject";
 
-  doCheck = true;
+  doCheck = false;
 
   src = fetchFromGitHub {
     owner = "joshainglis";

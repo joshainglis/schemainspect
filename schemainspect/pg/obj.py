@@ -544,6 +544,12 @@ class InspectedIndex(Inspected, TableRelated):
 
         if self.is_exclusion_constraint:
             return "select 1; " + textwrap.indent(statement, "-- ")
+        if self.is_partitioned_pk_constraint:
+            # Skip dropping index - DROP CONSTRAINT will drop it automatically
+            return "select 1; " + textwrap.indent(statement, "-- ")
+        if self.is_partition_inherited_constraint:
+            # Skip - partition children inherit indexes from parent
+            return "select 1; " + textwrap.indent(statement, "-- ")
         return statement
 
     @property
@@ -551,11 +557,46 @@ class InspectedIndex(Inspected, TableRelated):
         statement = "{};".format(self.definition)
         if self.is_exclusion_constraint:
             return "select 1; " + textwrap.indent(statement, "-- ")
+        if self.is_partitioned_pk_constraint:
+            # Skip creating index - ADD CONSTRAINT ... PRIMARY KEY (cols) will create it
+            return "select 1; " + textwrap.indent(statement, "-- ")
+        if self.is_partition_inherited_constraint:
+            # Skip - partition children inherit indexes from parent
+            return "select 1; " + textwrap.indent(statement, "-- ")
         return statement
 
     @property
     def is_exclusion_constraint(self):
         return self.constraint and self.constraint.constraint_type == "EXCLUDE"
+
+    @property
+    def is_partitioned_pk_constraint(self):
+        """Check if this index backs a PK constraint on a partitioned table.
+
+        For partitioned tables, we can't use 'ADD CONSTRAINT ... USING INDEX'
+        because partitioned indexes are not valid. Instead, we use
+        'ADD CONSTRAINT ... PRIMARY KEY (cols)' which creates its own index.
+        So we should skip creating this index separately.
+        """
+        return (
+            self.constraint
+            and self.constraint.constraint_type == "PRIMARY KEY"
+            and self.constraint.is_table_partitioned
+        )
+
+    @property
+    def is_partition_inherited_constraint(self):
+        """Check if this index backs a PK/UNIQUE constraint on a partition child.
+
+        Partition children inherit PK/UNIQUE constraints (and their indexes)
+        from the parent table. We should skip creating/dropping these indexes
+        separately because they're managed by the partition relationship.
+        """
+        return (
+            self.constraint
+            and self.constraint.constraint_type in ("PRIMARY KEY", "UNIQUE")
+            and self.constraint.is_partition
+        )
 
     def __eq__(self, other):
         """
@@ -952,6 +993,7 @@ class InspectedConstraint(Inspected, TableRelated):
         is_deferrable=False,
         initially_deferred=False,
         table_relkind=None,
+        is_partition=False,
     ):
         self.name = name
         self.schema = schema
@@ -960,6 +1002,7 @@ class InspectedConstraint(Inspected, TableRelated):
         self.definition = definition
         self.index = index
         self.is_fk = is_fk
+        self.is_partition = is_partition
 
         self.quoted_full_foreign_table_name = None
         self.fk_columns_local = None
@@ -1000,7 +1043,11 @@ class InspectedConstraint(Inspected, TableRelated):
 
     def get_create_statement(self, set_not_valid=False):
         # Don't use "USING INDEX" for partitioned tables - their indexes are not valid
-        if self.index and self.constraint_type != "EXCLUDE" and not self.is_table_partitioned:
+        if (
+            self.index
+            and self.constraint_type != "EXCLUDE"
+            and not self.is_table_partitioned
+        ):
             using_clause = "{} using index {}{}".format(
                 self.constraint_type, self.quoted_name, self.deferrable_subclause
             )
@@ -1012,7 +1059,15 @@ class InspectedConstraint(Inspected, TableRelated):
 
         USING = "alter table {} add constraint {} {};"
 
-        return USING.format(self.quoted_full_table_name, self.quoted_name, using_clause)
+        statement = USING.format(
+            self.quoted_full_table_name, self.quoted_name, using_clause
+        )
+
+        # Partition children inherit PK/UNIQUE constraints from parent - skip creating them
+        if self.is_partition and self.constraint_type in ("PRIMARY KEY", "UNIQUE"):
+            return "select 1; " + textwrap.indent(statement, "-- ")
+
+        return statement
 
     @property
     def can_use_not_valid(self):
@@ -1705,6 +1760,7 @@ class PostgreSQL(DBInspector):
                 is_deferrable=i.is_deferrable,
                 initially_deferred=i.initially_deferred,
                 table_relkind=getattr(i, "table_relkind", None),
+                is_partition=getattr(i, "is_partition", False),
             )
             if constraint.index:
                 index_name = quoted_identifier(constraint.index, schema=i.schema)

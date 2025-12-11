@@ -60,6 +60,7 @@ SELECT nspname                                 AS schema
      , condeferrable                           AS is_deferrable
      , condeferred                             AS initially_deferred
      , pg_class.relkind                        AS table_relkind
+     , pg_class.relispartition                 AS is_partition
 FROM pg_constraint
 INNER JOIN      pg_class
                     ON conrelid = pg_class.oid
